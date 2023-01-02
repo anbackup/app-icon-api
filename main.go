@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -14,7 +15,7 @@ import (
 
 var client = req.C().
 	SetUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36 Edg/108.0.1462.54").
-	SetTimeout(5 * time.Second).DevMode()
+	SetTimeout(5 * time.Second)
 
 func main() {
 
@@ -51,18 +52,18 @@ func main() {
 func getIcon(site string, packageName string) string {
 	expr1 := ""
 	expr2 := ""
-	urlSite := ""
+	siteUrl := ""
 	switch site {
 	case "coolapk":
 		{
-			urlSite = fmt.Sprintf("https://www.coolapk.com/apk/%s", packageName)
+			siteUrl = fmt.Sprintf("https://www.coolapk.com/apk/%s", packageName)
 			expr1 = `<div class="apk_topbar">([\s\S]+?)<div class="apk_topba_appinfo">`
 			expr2 = `src="(.+?)"`
 			break
 		}
 	case "qq":
 		{
-			urlSite = fmt.Sprintf("https://sj.qq.com/appdetail/%s", packageName)
+			siteUrl = fmt.Sprintf("https://sj.qq.com/appdetail/%s", packageName)
 			expr1 = `<div class="GameCard([\s\S]+?)</picture>`
 			expr2 = `src="(.+?)"`
 			break
@@ -70,8 +71,8 @@ func getIcon(site string, packageName string) string {
 	default:
 		return ""
 	}
-	b := client.Get(urlSite).Do()
-	if b.Status != "200" {
+	b := client.Get(siteUrl).Do()
+	if !strings.Contains(b.Status, "200") {
 		return ""
 	}
 	r, err := regexp.Compile(expr1)
