@@ -34,11 +34,36 @@ func main() {
 	app.Get("/", func(c *fiber.Ctx) error {
 		c.Response().Header.Set("Content-type", "application/json; charset=utf-8")
 		return c.JSON(map[string]string{
-			"coolapk_icon_url":   "https://icon.0n0.dev/coolapk/{package_name}",
-			"qq_icon_url":        "https://icon.0n0.dev/qq/{package_name}",
-			"playstore_icon_url": "https://icon.0n0.dev/playstore/{package_name}",
-			"icon_image":         "https://icon.0n0.dev/image/{origin}/{package_name}",
+			"coolapk_icon_url":         "https://icon.0n0.dev/coolapk/{package_name}",
+			"qq_icon_url":              "https://icon.0n0.dev/qq/{package_name}",
+			"playstore_icon_url":       "https://icon.0n0.dev/playstore/{package_name}",
+			"icon_image":               "https://icon.0n0.dev/image/{origin}/{package_name}",
+			"auto_origin_image_or_url": "https://icon.0n0.dev/{package_name}",
 		})
+	})
+	app.Get("/:packageName", func(c *fiber.Ctx) error {
+		s := c.Params("packageName")
+		s2 := getIcon("playstore", s)
+		if s2 != "" {
+			log.Println("playstore", s2)
+			r := client.Get(s2).Do()
+			if strings.Contains(r.Status, "200") {
+				return c.SendStream(r.Body)
+			}
+		}
+		s2 = getIcon("coolapk", s)
+		if s2 != "" {
+			log.Println("coolapk", s2)
+			c.Response().Header.Add("location", s2)
+			return c.SendStatus(301)
+		}
+		s2 = getIcon("qq", s)
+		if s2 != "" {
+			log.Println("qq", s2)
+			c.Response().Header.Add("location", s2)
+			return c.SendStatus(301)
+		}
+		return c.SendFile("default.webp")
 	})
 	// url
 	app.Get("/:origin/:packageName", func(c *fiber.Ctx) error {
