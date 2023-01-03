@@ -99,7 +99,7 @@ func getIcon(origin string, packageName string) string {
 		return ""
 	}
 	b := client.Get(originUrl).Do()
-	if !strings.Contains(b.Status, "200") {
+	if b.Err != nil || !strings.Contains(b.Status, "200") {
 		return ""
 	}
 	r, err := regexp.Compile(expr1)
