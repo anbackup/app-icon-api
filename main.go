@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cache"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/imroc/req/v3"
@@ -22,22 +23,27 @@ func main() {
 	app := fiber.New()
 	app.Use(logger.New())
 	app.Use(cors.New())
+	app.Use(cache.New(cache.Config{
+		Next: func(c *fiber.Ctx) bool {
+			return c.Query("refresh") == "true"
+		},
+		Expiration:   30 * time.Minute,
+		CacheControl: true,
+	}))
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		c.Response().Header.Set("Content-type", "application/json; charset=utf-8")
-		return c.JSON(struct {
-			Coolapk_icon_url string `json:"coolapk_icon_url"`
-			QQ_icon_url      string `json:"qq_icon_url"`
-		}{
-			Coolapk_icon_url: "https://icon.0n0.dev/coolapk/{package_name}",
-			QQ_icon_url:      "https://icon.0n0.dev/qq/{package_name}",
-		},
-		)
+		return c.JSON(map[string]string{
+			"coolapk_icon_url":   "https://icon.0n0.dev/coolapk/{package_name}",
+			"qq_icon_url":        "https://icon.0n0.dev/qq/{package_name}",
+			"playstore_icon_url": "https://icon.0n0.dev/playstore/{package_name}",
+			"icon_image":         "https://icon.0n0.dev/image/{origin}/{package_name}",
+		})
 	})
-	// coolapk
-	app.Get("/:site/:packageName", func(c *fiber.Ctx) error {
+	// url
+	app.Get("/:origin/:packageName", func(c *fiber.Ctx) error {
 		s := c.Params("packageName")
-		s1 := c.Params("site")
+		s1 := c.Params("origin")
 		s2 := getIcon(s1, s)
 		if s2 != "" {
 			log.Println(s2)
@@ -46,32 +52,53 @@ func main() {
 		}
 		return c.SendFile("default.webp")
 	})
+	// image
+	app.Get("/image/:origin/:packageName", func(c *fiber.Ctx) error {
+		s := c.Params("packageName")
+		s1 := c.Params("origin")
+		s2 := getIcon(s1, s)
+		if s2 != "" {
+			log.Println(s2)
+			r := client.Get(s2).Do()
+			if !strings.Contains(r.Status, "200") {
+				return fiber.ErrBadGateway
+			}
+			return c.SendStream(r.Body)
+		}
+		return c.SendFile("default.webp")
+	})
 	app.Listen(":3000")
 }
 
-func getIcon(site string, packageName string) string {
+func getIcon(origin string, packageName string) string {
 	expr1 := ""
 	expr2 := ""
-	siteUrl := ""
-	switch site {
+	originUrl := ""
+	switch origin {
 	case "coolapk":
 		{
-			siteUrl = fmt.Sprintf("https://www.coolapk.com/apk/%s", packageName)
+			originUrl = fmt.Sprintf("https://www.coolapk.com/apk/%s", packageName)
 			expr1 = `<div class="apk_topbar">([\s\S]+?)<div class="apk_topba_appinfo">`
 			expr2 = `src="(.+?)"`
 			break
 		}
 	case "qq":
 		{
-			siteUrl = fmt.Sprintf("https://sj.qq.com/appdetail/%s", packageName)
+			originUrl = fmt.Sprintf("https://sj.qq.com/appdetail/%s", packageName)
 			expr1 = `<div class="GameCard([\s\S]+?)</picture>`
 			expr2 = `src="(.+?)"`
 			break
 		}
+	case "playstore":
+		{
+			originUrl = fmt.Sprintf("https://play.google.com/store/apps/details?id=%s", packageName)
+			expr1 = `<head>([\s\S]+?)</head>`
+			expr2 = `<meta property="og:image" content="(.+?)">`
+		}
 	default:
 		return ""
 	}
-	b := client.Get(siteUrl).Do()
+	b := client.Get(originUrl).Do()
 	if !strings.Contains(b.Status, "200") {
 		return ""
 	}
