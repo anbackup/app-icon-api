@@ -37,30 +37,34 @@ func main() {
 			"coolapk_icon_url":         "https://icon.0n0.dev/coolapk/{package_name}",
 			"qq_icon_url":              "https://icon.0n0.dev/qq/{package_name}",
 			"playstore_icon_url":       "https://icon.0n0.dev/playstore/{package_name}",
+			"fdroid_icon_url":          "https://icon.0n0.dev/fdroid/{package_name}",
 			"icon_image":               "https://icon.0n0.dev/image/{origin}/{package_name}",
 			"auto_origin_image_or_url": "https://icon.0n0.dev/{package_name}",
 		})
 	})
 	app.Get("/:packageName", func(c *fiber.Ctx) error {
 		s := c.Params("packageName")
-		s2 := getIcon("playstore", s)
-		if s2 != "" {
+
+		if s2 := getIcon("playstore", s); s2 != "" {
 			log.Println("playstore", s2)
 			r := client.Get(s2).Do()
 			if strings.Contains(r.Status, "200") {
 				return c.SendStream(r.Body)
 			}
 		}
-		s2 = getIcon("coolapk", s)
-		if s2 != "" {
+		if s2 := getIcon("coolapk", s); s2 != "" {
 			log.Println("coolapk", s2)
-			c.Response().Header.Add("location", s2)
+			c.Location(s2)
 			return c.SendStatus(301)
 		}
-		s2 = getIcon("qq", s)
-		if s2 != "" {
+		if s2 := getIcon("qq", s); s2 != "" {
 			log.Println("qq", s2)
-			c.Response().Header.Add("location", s2)
+			c.Location(s2)
+			return c.SendStatus(301)
+		}
+		if s2 := getIcon("fdroid", s); s2 != "" {
+			log.Println("fdroid", s2)
+			c.Location(s2)
 			return c.SendStatus(301)
 		}
 		return c.SendFile("default.webp")
@@ -105,20 +109,24 @@ func getIcon(origin string, packageName string) string {
 			originUrl = fmt.Sprintf("https://www.coolapk.com/apk/%s", packageName)
 			expr1 = `<div class="apk_topbar">([\s\S]+?)<div class="apk_topba_appinfo">`
 			expr2 = `src="(.+?)"`
-			break
 		}
 	case "qq":
 		{
 			originUrl = fmt.Sprintf("https://sj.qq.com/appdetail/%s", packageName)
 			expr1 = `<div class="GameCard([\s\S]+?)</picture>`
 			expr2 = `src="(.+?)"`
-			break
 		}
 	case "playstore":
 		{
 			originUrl = fmt.Sprintf("https://play.google.com/store/apps/details?id=%s", packageName)
 			expr1 = `<head>([\s\S]+?)</head>`
 			expr2 = `<meta property="og:image" content="(.+?)">`
+		}
+	case "fdroid":
+		{
+			originUrl = fmt.Sprintf("https://f-droid.org/packages/%s/", packageName)
+			expr1 = `<header class="package-header">([\s\S]+?)</header>`
+			expr2 = `src="(.+?)"`
 		}
 	default:
 		return ""
